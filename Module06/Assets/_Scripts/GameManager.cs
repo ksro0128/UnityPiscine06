@@ -5,6 +5,9 @@ using UnityEngine;
 public class GameManager : MonoBehaviour
 {
     public static GameManager instance;
+	private bool isFirstPlay = true;
+	private bool isPlaying = false;
+
 
 	void Awake()
 	{
@@ -19,15 +22,29 @@ public class GameManager : MonoBehaviour
 		}
 	}
 
-	// Start is called before the first frame update
 	void Start()
 	{
-		
+		// PlayerPrefs.DeleteAll();
 	}
 
-	// Update is called once per frame
-	void Update()
+	public bool IsFirstPlay()
 	{
-		
+		if (isFirstPlay)
+		{
+			isFirstPlay = false;
+			return true;
+		}
+		return isFirstPlay;
 	}
+
+	public bool IsPlaying()
+	{
+		return isPlaying;
+	}
+
+	public void SetPlaying(bool isPlaying)
+	{
+		this.isPlaying = isPlaying;
+	}
+
 }

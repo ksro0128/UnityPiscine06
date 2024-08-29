@@ -9,29 +9,42 @@ public class PlayerMovement : MonoBehaviour
     private Vector3 movement;
     private Quaternion rotation = Quaternion.identity;
     private bool isFPS = false;
+    private bool isWASD = false;
 	[SerializeField] private CinemachineVirtualCamera fpsCamera;
     [SerializeField] private CinemachineFreeLook tpsCamera;
+    [SerializeField] private Camera mainCamera;
 	[SerializeField] private GameObject head;
 
-    private float xRotation = 0f;
-    [SerializeField] private float mouseSensitivity = 100f;
     [SerializeField] private float moveSpeed = 5f;
+    private AudioSource walkSound;
+
 
     void Start()
     {
         animator = GetComponent<Animator>();
         rb = GetComponent<Rigidbody>();
+        walkSound = GetComponent<AudioSource>();
         SwitchToTPS();
     }
 
     void Update()
     {
+        if (GameManager.instance != null && !GameManager.instance.IsPlaying())
+            return;
         if (Input.GetKeyDown(KeyCode.C))
         {
             if (isFPS)
                 SwitchToTPS();
             else
                 SwitchToFPS();
+        }
+        if (Input.GetKeyDown(KeyCode.R))
+        {
+            isWASD = !isWASD;
+            if (isWASD && isFPS)
+                UIManager.instance.SetViewText("FPS View (WASD)");
+            else if (isFPS)
+                UIManager.instance.SetViewText("FPS View");
         }
 
         if (isFPS)
@@ -47,7 +60,12 @@ public class PlayerMovement : MonoBehaviour
         isFPS = true;
         Cursor.lockState = CursorLockMode.Locked;
         Cursor.visible = false;
-
+        mainCamera.cullingMask &= ~(1 << LayerMask.NameToLayer("Player"));
+        tpsCamera.GetComponent<CameraObstacleHandler>().SwitchToFPS();
+        if (isWASD)
+            UIManager.instance.SetViewText("FPS View (WASD)");
+        else
+            UIManager.instance.SetViewText("FPS View");
     }
 
     void SwitchToTPS()
@@ -57,6 +75,9 @@ public class PlayerMovement : MonoBehaviour
         isFPS = false;
         Cursor.lockState = CursorLockMode.None;
         Cursor.visible = true;
+        mainCamera.cullingMask |= 1 << LayerMask.NameToLayer("Player");
+        tpsCamera.GetComponent<CameraObstacleHandler>().SwitchToTPS();
+        UIManager.instance.SetViewText("TPS View");
     }
 
     void HandleMovementTPS()
@@ -77,16 +98,23 @@ public class PlayerMovement : MonoBehaviour
 
         if (isWalking)
         {
-            // 루트 모션에 따라 이동
             rb.MovePosition(rb.position + movement * animator.deltaPosition.magnitude);
             rb.MoveRotation(rotation);
+            if (!walkSound.isPlaying)
+                walkSound.Play();
+        }
+        else
+        {
+            rb.velocity = Vector3.zero;
+            rb.angularVelocity = Vector3.zero;
+            walkSound.Stop();
         }
     }
 
     void HandleMovementFPS()
     {
 		Vector3 cameraForward = fpsCamera.transform.forward;
-        cameraForward.y = 0f; // Y축 회전을 제외하여 수평 회전만 적용
+        cameraForward.y = 0f;
         cameraForward.Normalize();
 
         if (cameraForward.magnitude > 0.1f)
@@ -95,25 +123,77 @@ public class PlayerMovement : MonoBehaviour
             rb.MoveRotation(rotation);
         }
 
-        // Z 키를 눌러 전진
-        if (Input.GetKey(KeyCode.Z))
+        if (!isWASD)
         {
-            animator.SetBool("IsWalking", true);
-            rb.MovePosition(transform.position + cameraForward * moveSpeed * Time.deltaTime);
+            if (Input.GetKey(KeyCode.Z))
+            {
+                animator.SetBool("IsWalking", true);
+                rb.velocity = cameraForward * moveSpeed;
+                if (!walkSound.isPlaying)
+                    walkSound.Play();
+            }
+            else if (Input.GetKey(KeyCode.X))
+            {
+                animator.SetBool("IsWalking", true);
+                rb.velocity = -cameraForward * moveSpeed;
+                if (!walkSound.isPlaying)
+                    walkSound.Play();
+            }
+            else
+            {
+                walkSound.Stop();
+                animator.SetBool("IsWalking", false);
+                rb.velocity = Vector3.zero;
+                rb.angularVelocity = Vector3.zero;
+            }
         }
-        else
+        else // for debugging purposes
         {
-            animator.SetBool("IsWalking", false);
+            if (Input.GetKey(KeyCode.W))
+            {
+                animator.SetBool("IsWalking", true);
+                rb.velocity = cameraForward * moveSpeed;
+                if (!walkSound.isPlaying)
+                    walkSound.Play();
+            }
+            else if (Input.GetKey(KeyCode.S))
+            {
+                animator.SetBool("IsWalking", true);
+                rb.velocity = -cameraForward * moveSpeed;
+                if (!walkSound.isPlaying)
+                    walkSound.Play();
+            }
+            else if (Input.GetKey(KeyCode.A))
+            {
+                animator.SetBool("IsWalking", true);
+                rb.velocity = -fpsCamera.transform.right * moveSpeed;
+                if (!walkSound.isPlaying)
+                    walkSound.Play();
+            }
+            else if (Input.GetKey(KeyCode.D))
+            {
+                animator.SetBool("IsWalking", true);
+                rb.velocity = fpsCamera.transform.right * moveSpeed;
+                if (!walkSound.isPlaying)
+                    walkSound.Play();
+            }
+            else
+            {
+                animator.SetBool("IsWalking", false);
+                rb.velocity = Vector3.zero;
+                rb.angularVelocity = Vector3.zero;
+                walkSound.Stop();
+            }
         }
+        
     }
 
     void OnAnimatorMove()
     {
-        // TPS 모드에서만 루트 모션 적용
-        // if (!isFPS)
-        // {
+        if (!isFPS)
+        {
             rb.MovePosition(rb.position + movement * animator.deltaPosition.magnitude);
             rb.MoveRotation(rotation);
-        // }
+        }
     }
 }
